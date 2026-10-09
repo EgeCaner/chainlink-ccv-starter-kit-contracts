@@ -26,12 +26,17 @@ import {console2} from "forge-std/console2.sol";
 ///      (exit 1) from an RPC/connection failure (exit 2). A clean run returns
 ///      normally (exit 0).
 ///
-/// @dev Unreachable contracts are deliberately NOT drift. A recorded address with no
-///      code almost always means the wrong `--rpc-url`, not a config mismatch, so it
-///      reverts WITHOUT the marker and the wrapper reports exit 2. The code-length
-///      guard is load-bearing for a second reason: a staticcall to a codeless address
-///      SUCCEEDS with empty returndata, and the ensuing ABI-decode failure is not
-///      catchable by try/catch (same trap documented in `BalanceReport`).
+/// @dev A wrong `--rpc-url` is caught before anything is read: `run()` checks the
+///      connected chainid against the chain config (`ConfigLib.assertChain`), and that
+///      revert carries no marker, so the wrapper reports exit 2. Once the chain matches, a
+///      recorded address with no code is a bad RECORD (a broadcast that never landed, a
+///      same-chainid fork deploy, another chain's file, a hand-edited entry), so it is
+///      reported as drift per contract and only that
+///      contract's checks are skipped: one stale entry must not silence every other
+///      comparison on the chain. The code-length guard is load-bearing for a second
+///      reason: a staticcall to a codeless address SUCCEEDS with empty returndata, and the
+///      ensuing ABI-decode failure is not catchable by try/catch (same trap documented in
+///      `BalanceReport`).
 ///
 /// @dev Lane direction follows the same mapping the configure scripts encode, which is
 ///      dictated by where each value is read on-chain:
@@ -85,8 +90,7 @@ contract DriftCheck is Script {
     Types.OperatorConfig memory operator,
     Types.LaneCommittee[] memory lanes
   ) public view returns (uint256 drift) {
-    _assertReachable(deployment);
-
+    drift += checkReachability(deployment);
     drift += checkRoles(deployment, operator);
     drift += checkVerifierConfig(deployment, operator);
     drift += checkResolverImplementations(deployment, operator, lanes);
@@ -121,6 +125,7 @@ contract DriftCheck is Script {
         ++drift;
         continue;
       }
+      if (!_hasCode(deployment.verifiers[i].addr)) continue; // reported by checkReachability
       Types.VerifierRoles memory expected =
       ConfigLib.verifierConfigByTag(operator, deployment.verifiers[i].versionTag).roles;
 
@@ -144,7 +149,7 @@ contract DriftCheck is Script {
       }
     }
 
-    if (deployment.resolver != address(0)) {
+    if (_hasCode(deployment.resolver)) {
       VersionedVerifierResolver resolver = VersionedVerifierResolver(deployment.resolver);
       drift += _diffAddress("resolver owner", operator.resolver.roles.owner, resolver.owner());
       drift += _diffAddress(
@@ -152,11 +157,11 @@ contract DriftCheck is Script {
       );
     }
 
-    if (deployment.factory != address(0) && operator.factory.roles.owner != address(0)) {
+    if (_hasCode(deployment.factory) && operator.factory.roles.owner != address(0)) {
       drift += _diffAddress("factory owner", operator.factory.roles.owner, CREATE2Factory(deployment.factory).owner());
     }
 
-    if (deployment.factory != address(0)) {
+    if (_hasCode(deployment.factory)) {
       drift += _diffAddressSet(
         "factory allowlist", operator.factory.roles.allowlist, CREATE2Factory(deployment.factory).getAllowList()
       );
@@ -173,6 +178,7 @@ contract DriftCheck is Script {
     Types.OperatorConfig memory operator
   ) public view returns (uint256 drift) {
     for (uint256 i = 0; i < deployment.verifiers.length; ++i) {
+      if (!_hasCode(deployment.verifiers[i].addr)) continue; // reported by checkReachability
       CommitteeVerifier verifier = CommitteeVerifier(deployment.verifiers[i].addr);
       string memory prefix = string.concat("verifier ", ConfigLib.tagToString(deployment.verifiers[i].versionTag), " ");
 
@@ -215,7 +221,7 @@ contract DriftCheck is Script {
     Types.OperatorConfig memory operator,
     Types.LaneCommittee[] memory lanes
   ) public view returns (uint256 drift) {
-    if (deployment.resolver == address(0)) return 0;
+    if (!_hasCode(deployment.resolver)) return 0; // unrecorded, or reported by checkReachability
     VersionedVerifierResolver resolver = VersionedVerifierResolver(deployment.resolver);
 
     // ---- inbound: recorded entries -> on-chain ----
@@ -316,6 +322,7 @@ contract DriftCheck is Script {
     Types.LaneCommittee[] memory lanes
   ) public view returns (uint256 drift) {
     for (uint256 i = 0; i < deployment.verifiers.length; ++i) {
+      if (!_hasCode(deployment.verifiers[i].addr)) continue; // reported by checkReachability
       bytes4 tag = deployment.verifiers[i].versionTag;
       SignatureQuorumValidator.SignatureConfig[] memory onChain =
         SignatureQuorumValidator(deployment.verifiers[i].addr).getAllSignatureConfigs();
@@ -380,6 +387,7 @@ contract DriftCheck is Script {
         continue;
       }
       CommitteeVerifier verifier = CommitteeVerifier(ConfigLib.verifierByTag(deployment, lane.versionTag));
+      if (!_hasCode(address(verifier))) continue; // reported by checkReachability
 
       // Inbound leg: the signer set that verifies messages ARRIVING from lane.source
       // lives on this chain only when this chain is the destination.
@@ -410,30 +418,50 @@ contract DriftCheck is Script {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  //  reachability — an environment problem, never drift
-  // ---------------------------------------------------------------------------
-  function _assertReachable(
+  /// @notice Every recorded address has code on the connected chain.
+  /// @dev Runs after `run()` has matched the chainid, so a codeless address here is a bad
+  ///      record, not a bad RPC: it is drift, and every other check skips that contract
+  ///      (see the contract-level notes) instead of the whole run aborting.
+  function checkReachability(
     Types.Deployment memory deployment
-  ) private view {
+  ) public view returns (uint256 drift) {
     for (uint256 i = 0; i < deployment.verifiers.length; ++i) {
-      require(
-        deployment.verifiers[i].addr.code.length != 0,
+      if (_hasCode(deployment.verifiers[i].addr)) continue;
+      console2.log(
         string.concat(
-          "DriftCheck: no code at recorded verifier for versionTag ",
+          "DRIFT_DETECTED verifier ",
           ConfigLib.tagToString(deployment.verifiers[i].versionTag),
-          " (wrong --rpc-url?)"
+          " has NO CODE at its recorded address (stale or wrong-chain record in config/deployments) - its checks are skipped"
         )
       );
+      console2.log("  recorded:", deployment.verifiers[i].addr);
+      ++drift;
     }
-    require(
-      deployment.resolver == address(0) || deployment.resolver.code.length != 0,
-      "DriftCheck: no code at recorded resolver (wrong --rpc-url?)"
+    drift += _reportCodeless("resolver", deployment.resolver);
+    drift += _reportCodeless("factory", deployment.factory);
+  }
+
+  /// @dev An unrecorded (zero) resolver or factory is not drift; a recorded one with no code is.
+  function _reportCodeless(
+    string memory label,
+    address recorded
+  ) private view returns (uint256) {
+    if (recorded == address(0) || _hasCode(recorded)) return 0;
+    console2.log(
+      string.concat(
+        "DRIFT_DETECTED ",
+        label,
+        " has NO CODE at its recorded address (stale or wrong-chain record in config/deployments) - its checks are skipped"
+      )
     );
-    require(
-      deployment.factory == address(0) || deployment.factory.code.length != 0,
-      "DriftCheck: no code at recorded factory (wrong --rpc-url?)"
-    );
+    console2.log("  recorded:", recorded);
+    return 1;
+  }
+
+  function _hasCode(
+    address target
+  ) private view returns (bool) {
+    return target.code.length != 0;
   }
 
   // ---------------------------------------------------------------------------

@@ -495,25 +495,53 @@ contract DriftCheckTest is CommitteeVerifierSetup {
   }
 
   // ===========================================================================
-  //  reachability is an environment problem, not drift
+  //  reachability: a codeless recorded address is drift for that contract only
   // ===========================================================================
+  // A wrong --rpc-url never gets this far: run() matches the chainid first. So a recorded
+  // address with no code is a bad record, reported as drift while every other contract
+  // is still compared.
 
-  function test_unreachableVerifier_revertsWithoutMarker() public {
+  address internal constant CODELESS = address(0xC0DE1E55);
+
+  function test_unreachableVerifier_isDriftAndOtherChecksStillRun() public view {
     Types.Deployment memory deployment = _deployment();
-    deployment.verifiers[0].addr = address(0xC0DE1E55); // recorded, but no code here
-    vm.expectRevert("DriftCheck: no code at recorded verifier for versionTag 0x00010001 (wrong --rpc-url?)");
-    // called for its expected revert; the return is irrelevant
-    // forge-lint: disable-next-line(unused-return)
-    script.checkAll(deployment, _roles(), _lanes());
+    deployment.verifiers[0].addr = CODELESS;
+    Types.OperatorConfig memory operator = _roles();
+    operator.resolver.roles.feeAggregator = address(0xBAD);
+
+    assertEq(script.checkReachability(deployment), 1, "codeless verifier is drift");
+    // The verifier's own checks are skipped instead of reverting...
+    assertEq(script.checkVerifierConfig(deployment, operator), 0, "verifier config skipped");
+    assertEq(script.checkSignatureConfigs(deployment, operator, _lanes()), 0, "signature configs skipped");
+    assertEq(script.checkLanes(deployment, operator, _lanes()), 0, "lane legs skipped");
+    // ...while drift elsewhere is still found: the resolver role, and the resolver maps
+    // that point at the real verifier rather than the recorded address.
+    assertEq(script.checkRoles(deployment, operator), 1, "resolver feeAggregator still compared");
+    assertEq(script.checkResolverImplementations(deployment, operator, _lanes()), 2, "inbound + outbound");
+    assertEq(script.checkAll(deployment, operator, _lanes()), 4, "all counted, nothing reverted");
   }
 
-  function test_unreachableResolver_revertsWithoutMarker() public {
+  function test_unreachableResolver_isDriftAndItsChecksAreSkipped() public view {
     Types.Deployment memory deployment = _deployment();
-    deployment.resolver = address(0xC0DE1E55);
-    vm.expectRevert("DriftCheck: no code at recorded resolver (wrong --rpc-url?)");
-    // called for its expected revert; the return is irrelevant
-    // forge-lint: disable-next-line(unused-return)
-    script.checkAll(deployment, _roles(), _lanes());
+    deployment.resolver = CODELESS;
+    assertEq(script.checkReachability(deployment), 1, "codeless resolver is drift");
+    assertEq(script.checkResolverImplementations(deployment, _roles(), _lanes()), 0, "resolver maps skipped");
+    assertEq(script.checkAll(deployment, _roles(), _lanes()), 1, "only the reachability drift");
+  }
+
+  function test_unreachableFactory_isDriftAndItsChecksAreSkipped() public view {
+    Types.Deployment memory deployment = _deployment();
+    deployment.factory = CODELESS;
+    assertEq(script.checkReachability(deployment), 1, "codeless factory is drift");
+    assertEq(script.checkAll(deployment, _roles(), _lanes()), 1, "only the reachability drift");
+  }
+
+  function test_reachability_cleanFixtureAndUnrecordedContractsAreNotDrift() public view {
+    Types.Deployment memory deployment = _deployment();
+    assertEq(script.checkReachability(deployment), 0, "every recorded contract has code");
+    deployment.resolver = address(0);
+    deployment.factory = address(0);
+    assertEq(script.checkReachability(deployment), 0, "unrecorded is not codeless");
   }
 
   // ===========================================================================
