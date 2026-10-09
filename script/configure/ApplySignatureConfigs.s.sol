@@ -150,13 +150,14 @@ contract ApplySignatureConfigs is BaseScript {
     );
     if (configs.length == 0) {
       console2.log("[ApplySignatureConfigs] nothing to do: every lane is already current:", matched);
-      return;
+    } else {
+      console2.log("[ApplySignatureConfigs] staged lanes:", configs.length, "of", matched);
+      _stage(callFor(verifier, new uint64[](0), configs));
     }
-    console2.log("[ApplySignatureConfigs] staged lanes:", configs.length, "of", matched);
-    _stage(callFor(verifier, new uint64[](0), configs));
 
     // The tag is part of the batch name: per-tag runs on the same chain must not
-    // overwrite each other's Safe batch.
+    // overwrite each other's Safe batch. Reached with nothing staged too, so a stale
+    // batch from an earlier run is removed.
     _flush(string.concat("apply-signature-configs-", chainAlias, "-", ConfigLib.tagToString(versionTag)));
   }
 
