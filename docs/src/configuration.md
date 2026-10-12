@@ -58,6 +58,9 @@ inside a deployed verifier and has no getter** — the config file is the only r
 what was deployed. Treat a post-deploy `rmn` drift as something to investigate, one
 chain at a time.
 
+A `chainId` that differs from upstream is a `CONFLICT` in both `sync-check` and `sync-chain` and is never
+written; only a `0` chainId is filled in.
+
 `explorerAddressPath` is nullable upstream. When the API serves no explorer for a chain
 the field is skipped entirely — never compared, never written — so a value you set by
 hand survives every sync.
