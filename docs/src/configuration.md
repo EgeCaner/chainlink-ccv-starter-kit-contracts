@@ -30,8 +30,8 @@ the sync tooling never touches.
 Onboarding a new chain:
 
 ```bash
-# 1. find the chain's selector — requires: nothing
-make discover
+# 1. find the chain's selector — requires: nothing (mainnet by default)
+make discover CCIP_ENV=testnet
 
 # 2. create config/chains/<alias>.json with the Chainlink fields filled in
 #    requires: CHAIN, SELECTOR

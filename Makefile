@@ -26,6 +26,7 @@ CHAIN   ?=
 LANE    ?=
 TAG     ?=
 SELECTOR ?=                 # CCIP chain selector, for add-chain
+CCIP_ENV ?=                 # discover catalog: mainnet (default) | testnet
 TARGET  ?=                  # ownership target: verifier:<tag> | resolver | factory
 RPC_URL ?=
 SOURCE_RPC ?=
@@ -135,8 +136,8 @@ clean:            ## forge clean
 # --allow-custom-api-base, required to use a CCIP_API_BASE other than the default.
 CUSTOM_API_BASE_FLAG = $(if $(and $(filter command line,$(origin ALLOW_CUSTOM_API_BASE)),$(filter true 1,$(ALLOW_CUSTOM_API_BASE))),--allow-custom-api-base)
 
-discover:         ## list the CCIP API chain catalog + local config status
-	./script/config/sync-ccip-config.sh discover $(CUSTOM_API_BASE_FLAG)
+discover:         ## list the CCIP API chain catalog (CCIP_ENV=mainnet|testnet, default mainnet) + local config status
+	./script/config/sync-ccip-config.sh discover $(if $(CCIP_ENV),--env $(CCIP_ENV)) $(CUSTOM_API_BASE_FLAG)
 
 add-chain:        ## seed config/chains/<alias>.json from the API; never overwrites
 	@test -n "$(CHAIN)"    || { echo "CHAIN is required, e.g. make add-chain CHAIN=sepolia SELECTOR=16015286601757825753"; exit 2; }
