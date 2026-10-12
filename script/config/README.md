@@ -14,8 +14,8 @@ Four subcommands; run with no arguments to print the built-in help.
 ## `discover` — what chains exist
 
 ```bash
-./script/config/sync-ccip-config.sh discover                # testnet catalog (default)
-./script/config/sync-ccip-config.sh discover --env mainnet
+./script/config/sync-ccip-config.sh discover                # mainnet catalog (default)
+./script/config/sync-ccip-config.sh discover --env testnet  # make discover CCIP_ENV=testnet
 ```
 
 Lists every chain the API serves — name, family, selector, chainId — and marks the ones
@@ -142,7 +142,7 @@ end up in verifier constructor args, so the override is guarded:
 - Every `discover` / `bootstrap` / `check` / `sync` run prints `CCIP API: <base>` first, and
   an allowed non-default base also prints a `WARN` on stderr naming it, so a substituted host
   shows up in CI logs.
-- The chain selector must be 1–20 digits, and `discover --env` must be `testnet` or `mainnet`,
+- The chain selector must be 1–20 digits, and `discover --env` must be `mainnet` or `testnet`,
   before either goes into a URL.
 
 TLS authenticates the host, not the content. These checks protect the transport and the

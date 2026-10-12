@@ -22,7 +22,8 @@
 # Selectors and chainIds are compared as opaque text, never coerced to numbers.
 #
 # Usage:
-#   sync-ccip-config.sh discover [--env testnet|mainnet]      list the API catalog + local status
+#   sync-ccip-config.sh discover [--env mainnet|testnet]      list the API catalog + local status
+#                                                             (default mainnet)
 #   sync-ccip-config.sh bootstrap <name> <selector>          seed config/chains/<name>.json from the
 #                                                             template + API; never overwrites
 #   sync-ccip-config.sh check   [<name>|--all]                drift check (no write)
@@ -142,7 +143,7 @@ cmd_bootstrap() {
 }
 
 cmd_discover() {
-    local env="testnet"
+    local env="mainnet"
     while [ $# -gt 0 ]; do
         case "$1" in
             --env)
@@ -156,13 +157,18 @@ cmd_discover() {
         esac
     done
     case "$env" in
-        testnet | mainnet) ;;
+        mainnet | testnet) ;;
         *)
-            err "discover: --env must be testnet or mainnet, got '$env'"
+            err "discover: --env must be mainnet or testnet, got '$env'"
             exit 1
             ;;
     esac
     local base="$API_BASE"
+    if [ "$env" = "mainnet" ]; then
+        echo "Environment: mainnet (--env testnet for testnets)"
+    else
+        echo "Environment: testnet (--env mainnet for production)"
+    fi
     local body map
     body="$(mktemp)"
     map="$(mktemp)"
