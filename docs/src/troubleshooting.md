@@ -33,6 +33,7 @@ are always **0** clean, **1** finding, **2** could not run.
 | `BaseScript: SAFE output needs SAFE_ADDRESS` | SAFE mode without executing Safe | set `SAFE_ADDRESS=0x…` to the Safe that will import the batch |
 | `BaseScript: no code at verifier …` | RPC points at wrong network or verifier not deployed | check `--rpc-url` matches the chain alias; confirm tag is in deployment record |
 | stray lane configured | extra file in `config/operator/lanes/` | only files in that directory are live inputs — move retired lanes out; see [configure § lane directory](configure.md#the-lane-directory-is-the-input-set) |
+| `ConfigLib: <file a> and <file b> declare the same direction - one file per directed lane` | two lane files describe the same (source, dest) direction, by alias or by selector; every configure script reads lanes through this check, so it blocks runs on every chain | keep one file per direction — to rotate, flip `versionTag` in the existing file and move the copy out; see [configure § one file per directed lane](configure.md#one-file-per-directed-lane) |
 | `WARN undeclared signature config left LIVE` from `apply-signature-configs` | the dest verifier still holds a committee for a source selector no lane declares for this tag (a retired or repinned lane) | if the lane is retired, re-run with `REMOVE_UNDECLARED_SIGNATURE_CONFIGS=true` to revoke it; see [Retiring a lane](configure.md#retiring-a-lane) |
 | `allowedSenders requires allowlistEnabled=true` / `InvalidAllowListRequest` | senders listed while `allowlistEnabled: false` | enable the allowlist, or empty `allowedSenders` |
 | committee has no redundancy | threshold == signer count (N-of-N): one offline signer halts the lane | add signers or lower the threshold, or set `ALLOW_WEAK_COMMITTEE=true` for testnets only |
@@ -43,6 +44,7 @@ are always **0** clean, **1** finding, **2** could not run.
 | symptom | meaning | fix |
 |---|---|---|
 | `make deployments-check` exit 1 with no records | `deployments.md` on disk does not match `config/` (it still holds another deployment's addresses) | regenerate with `make deployments-doc`; the page reads "No deployments recorded yet" until you deploy |
+| validate-config: `declares the same direction as config/operator/lanes/<other>.json` | two lane files share a source and dest (by alias or by selector), whatever their tags | delete or move out one of them — see [configure § one file per directed lane](configure.md#one-file-per-directed-lane) |
 | drift exit 1 | on-chain state ≠ config | read the script output for `DRIFT_DETECTED` lines; fix config or re-run configure |
 | drift exit 2 | RPC down, missing deployment record, or revert without drift marker | fix infrastructure first — not the same as drift |
 | parity fails on `versionTag` | lane tag ≠ recorded verifier on one chain | deploy verifier with that tag on both chains, or fix the lane file |

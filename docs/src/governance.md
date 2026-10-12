@@ -35,6 +35,9 @@ a one-way lane is left alone. `config/operator.json` must parse with a non-zero
 scripts parse lazily, so without this a broken file surfaces only when the first script
 touches it, possibly mid-ceremony. Run it first, on every config edit.
 
+Two lane files for the **same** direction (same aliases, or same selectors) fail whatever
+their tags: see [one file per directed lane](configure.md#one-file-per-directed-lane).
+
 ## Drift check
 
 ```bash
@@ -52,6 +55,11 @@ configs that means a committee on this chain's verifier for a source selector th
 with this destination and that verifier's `versionTag` declares, typically left behind by a
 retired lane. Revoke it with `REMOVE_UNDECLARED_SIGNATURE_CONFIGS=true make
 apply-signature-configs`; see [Retiring a lane](configure.md#retiring-a-lane).
+
+Two lane files for the same direction touching this chain are reported as drift too, even
+when the chain matches both: every configure script refuses to run until one file is
+removed, so re-applying cannot clear it. See
+[one file per directed lane](configure.md#one-file-per-directed-lane).
 
 Exit codes: **0** clean, **1** drift, **2** RPC unreachable or another failure.
 

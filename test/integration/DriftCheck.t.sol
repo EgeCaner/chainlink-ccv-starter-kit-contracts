@@ -567,6 +567,31 @@ contract DriftCheckTest is CommitteeVerifierSetup {
 
   /// @dev Index 0 is the SOURCE-side lane, index 1 is the DEST-side lane. Tests index
   ///      deliberately so a direction regression shows up as a failing assertion.
+  // ===========================================================================
+  //  two lane files for one direction
+  // ===========================================================================
+
+  function test_drift_twoLanesForOneDirection() public view {
+    Types.LaneCommittee[] memory lanes = new Types.LaneCommittee[](3);
+    lanes[0] = _outboundLane();
+    lanes[1] = _inboundLane();
+    lanes[2] = _outboundLane();
+    lanes[2].lane.name = "local_to_remote_v2";
+    lanes[2].lane.versionTag = bytes4(0x00010002);
+
+    assertEq(script.checkLaneDirections(_roles(), lanes), 1, "one pair, one report");
+  }
+
+  function test_twoLanesForOneDirection_elsewhereIsNotThisChainsDrift() public view {
+    Types.LaneCommittee[] memory lanes = new Types.LaneCommittee[](2);
+    lanes[0] = _outboundLane();
+    lanes[0].lane.source = Types.LaneEndpoint({aliasName: "third_chain", chainSelector: 3333});
+    lanes[1] = lanes[0];
+    lanes[1].lane.name = "third_to_remote_v2";
+
+    assertEq(script.checkLaneDirections(_roles(), lanes), 0, "a pair not touching this chain is reported there");
+  }
+
   function _lanes() internal view returns (Types.LaneCommittee[] memory lanes) {
     lanes = new Types.LaneCommittee[](2);
     lanes[0] = _outboundLane();

@@ -66,7 +66,7 @@ contract DriftCheck is Script {
     ConfigLib.assertChain(chainAlias);
     Types.Deployment memory deployment = ConfigLib.readDeployment(chainAlias);
     Types.OperatorConfig memory operator = ConfigLib.readOperator(chainAlias);
-    Types.LaneCommittee[] memory lanes = ConfigLib.readLaneCommittees();
+    Types.LaneCommittee[] memory lanes = ConfigLib.readLaneCommitteesAllowingDuplicates();
 
     console2.log("[DriftCheck] chain:", chainAlias);
     console2.log("  lanes considered:", lanes.length);
@@ -92,6 +92,40 @@ contract DriftCheck is Script {
     drift += checkResolverImplementations(deployment, operator, lanes);
     drift += checkLanes(deployment, operator, lanes);
     drift += checkSignatureConfigs(deployment, operator, lanes);
+    drift += checkLaneDirections(operator, lanes);
+  }
+
+  /// @notice Two lane files for the same direction (`ConfigLib.sameDirection`), reported
+  ///         once per pair that touches this chain.
+  function checkLaneDirections(
+    Types.OperatorConfig memory operator,
+    Types.LaneCommittee[] memory lanes
+  ) public pure returns (uint256 drift) {
+    for (uint256 i = 0; i < lanes.length; ++i) {
+      Types.LaneConfig memory lane = lanes[i].lane;
+      for (uint256 j = i + 1; j < lanes.length; ++j) {
+        Types.LaneConfig memory other = lanes[j].lane;
+        if (!ConfigLib.sameDirection(lane, other)) continue;
+        if (!_touches(lane, operator.aliasName) && !_touches(other, operator.aliasName)) continue;
+        console2.log(
+          string.concat(
+            "DRIFT_DETECTED lanes ",
+            lane.name,
+            " and ",
+            other.name,
+            " declare the same direction - remove one file; every configure script refuses to run until then"
+          )
+        );
+        ++drift;
+      }
+    }
+  }
+
+  function _touches(
+    Types.LaneConfig memory lane,
+    string memory aliasName
+  ) private pure returns (bool) {
+    return _stringsEqual(lane.source.aliasName, aliasName) || _stringsEqual(lane.dest.aliasName, aliasName);
   }
 
   /// @notice Owners and admin/fee roles vs `config/operator/chains/<alias>.json`.
