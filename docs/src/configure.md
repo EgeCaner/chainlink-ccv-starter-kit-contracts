@@ -65,6 +65,26 @@ the lanes you meant to configure. The Safe batch under `out/safe/<alias>/` is no
 per-lane view: each configure script collapses every matched lane into a single call, so
 one entry covers all of them. Keep retired and in-progress lanes outside `config/operator/lanes/`.
 
+### One file per directed lane
+
+Each (source, destination) pair has exactly one lane file. The call each script sends is
+keyed by a chain selector — the destination for the remote-chain config, allowlist and
+outbound map, the source for the signature config — and the contract keeps one value per
+key, so a second file for the same direction would override the first inside one call (for
+the allowlist, both deltas are taken against the same on-chain set and compose into neither
+file's list). A different `versionTag` does not make a second file legitimate: the resolver's
+outbound map has no tag dimension. To rotate a verifier, flip the tag in the existing file
+(see [Rotating a verifier](operations.md#rotating-a-verifier)); do not copy it to a `-v2` file.
+
+`make validate-config` fails such a pair (`declares the same direction as …`, matched on the
+aliases or on the selectors). The configure scripts that read every lane refuse to run, on
+any chain and before anything is sent, until one file is removed:
+`ConfigLib: <file a> and <file b> declare the same direction - one file per directed lane`.
+`make pause-lane` reads only the lane it is given, so pausing still works while a duplicate
+is in place. `make drift` keeps running and reports the pair as
+`DRIFT_DETECTED lanes <a> and <b> declare the same direction`; re-applying does not clear
+it, removing one file does.
+
 ### Retiring a lane
 
 Moving a lane file out of `config/operator/lanes/` stops the scripts from staging it, but
