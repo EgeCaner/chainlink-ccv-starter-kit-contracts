@@ -442,6 +442,34 @@ check "requests the catalog URL" "$(curl_has 'https://api.ccip.chain.link/v2/cha
 check "--proto =https" "$(grep -A1 -xF -- --proto "$CURL_LOG" | tail -1)" "=https"
 check "--proto-redir =https" "$(grep -A1 -xF -- --proto-redir "$CURL_LOG" | tail -1)" "=https"
 
+# ---------------------------------------------------------------- discover listing
+# A fake `curl` that serves a two-chain catalog: 1111 is configured as `fixture`, 2222 is not.
+CATALOG_BIN="$TMP/catalogbin"
+mkdir -p "$CATALOG_BIN"
+cat > "$CATALOG_BIN/curl" <<'SH'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+    [ "$1" = "-o" ] && out="$2"
+    shift
+done
+printf '%s' '[{"name":"one","chainFamily":"evm","chainSelector":"1111","chainId":"1"},{"name":"two","chainFamily":"evm","chainSelector":"2222","chainId":"2"}]' > "$out"
+printf '200'
+SH
+chmod +x "$CATALOG_BIN/curl"
+
+echo "discover: lists every API chain with its local status"
+out="$(PATH="$CATALOG_BIN:$PATH" bash "$SYNC" discover 2>&1)"
+check "configured chain marked" "$(echo "$out" | grep -c 'one .*configured(fixture)')" "1"
+check "unconfigured chain listed as available" "$(echo "$out" | grep -c 'two .*available')" "1"
+
+echo "discover: with no chain configs, every API chain is still listed"
+ASIDE="$TMP/chains-aside"
+mkdir -p "$ASIDE"
+find "$TMP/config/chains" -name '*.json' ! -name '_template.json' -exec mv {} "$ASIDE/" \;
+out="$(PATH="$CATALOG_BIN:$PATH" bash "$SYNC" discover 2>&1)"
+mv "$ASIDE"/*.json "$TMP/config/chains/"
+check "both chains listed as available" "$(echo "$out" | grep -c ' available$')" "2"
+
 echo
 printf '[selftest] %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
