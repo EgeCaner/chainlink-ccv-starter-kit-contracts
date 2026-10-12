@@ -187,7 +187,7 @@ cmd_discover() {
         jq -r '(if type=="array" then . else .chains end)[]
             | [.name, (.chainFamily // "?"), (.chainSelector|tostring), (.chainId|tostring)] | @tsv' "$body" |
             awk -F'\t' -v OFS='\t' '
-              NR==FNR { nm[$1]=$2; next }
+              FILENAME == ARGV[1] { nm[$1]=$2; next }
               { st = ($3 in nm) ? "configured("nm[$3]")" : "available"; print $1,$2,$3,$4,st }
             ' "$map" - | sort
     } | column -t -s "$(printf '\t')"
