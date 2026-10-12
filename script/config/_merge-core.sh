@@ -13,6 +13,10 @@
 #  Every other key is left as it is: alias is the file's identity, chainSelector the
 #  immutable join GUARD. ConfigLib rejects any key outside the schema at load.
 #
+#  A non-zero chainId that differs from the source is a CONFLICT in both modes: reported,
+#  exit 1, nothing written. A zero or null chainId is drift like any other core field and
+#  sync fills it.
+#
 #  Writes atomically: temp file in the SAME directory, validated, then mv.
 #
 #  GATE: router and rmn are the security-relevant core fields, so `sync` refuses to change
@@ -46,6 +50,15 @@ CFG_SELECTOR="$(jq -r '.chainSelector | tostring' "$CONFIG_PATH")"
 if [ "$SRC_SELECTOR" != "$CFG_SELECTOR" ]; then
     echo "  GUARD FAIL $NAME: source chainSelector $SRC_SELECTOR != config $CFG_SELECTOR"
     exit 2
+fi
+
+# ---- chainId: fill a zero, never replace a non-zero value -----------------------
+CHAIN_ID_CONFLICT="$(jqlib -r --slurpfile src "$FLAT_PATH" \
+    'include "core-fields"; chain_id_conflict(.; $src[0])' "$CONFIG_PATH")"
+if [ -n "$CHAIN_ID_CONFLICT" ]; then
+    echo "  CONFLICT $NAME: $CHAIN_ID_CONFLICT"
+    echo "      chainId never changes for a chain selector: one side is wrong. Nothing written; fix by hand."
+    exit 1
 fi
 
 # A name difference is informational: the join is on chainSelector, never on name.

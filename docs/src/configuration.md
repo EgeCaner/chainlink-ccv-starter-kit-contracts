@@ -68,6 +68,9 @@ them without an explicit override, and writes nothing for that chain when it ref
 
 `sync-check` stays read-only and names a pending change with the override it would need.
 
+A `chainId` that differs from upstream is a `CONFLICT` in both `sync-check` and `sync-chain` and is never
+written; only a `0` chainId is filled in.
+
 `explorerAddressPath` is nullable upstream. When the API serves no explorer for a chain
 the field is skipped entirely — never compared, never written — so a value you set by
 hand survives every sync.
