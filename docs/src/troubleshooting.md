@@ -20,6 +20,7 @@ are always **0** clean, **1** finding, **2** could not run.
 | `BootstrapFactory: deployer nonce != 0` | factory is not this account's first tx on the chain | use a fresh deployer at nonce 0, or accept a non-parity factory address on this chain only |
 | `DeployResolver: deployed address != predicted` | initcode differed (wrong profile, unpinned deps, different machine paths with metadata hash) | `npm ci`, default profile (`forge build`), confirm `bytecode_hash = "none"` |
 | `DeployVerifier: rmn must be non-zero` | chain config has zero or missing RMN | fix `config/chains/<alias>.json`; re-sync from CCIP API if needed |
+| `DeployResolver: resolver.roles.owner unset` | the operator file's `resolver.roles` entry has no owner | set it before deploy — see [Deploying §2](deploy.md#2-deploy-the-resolver) |
 | `DeployVerifier: verifier.owner role unset` (or storageLocationsAdmin / feeAggregator) | no `verifiers[]` entry for this tag in the operator file | add the entry **before** deploy — see [Deploying §3](deploy.md#3-deploy-the-verifier) |
 | resolver addresses differ across chains | factory or initcode diverged | stop; do not configure on top — redeploy from a known-good build on the diverged chain |
 | `deploy-verifier` for a tag already deployed on that chain | record already has the tag | **`DeployVerifier: versionTag … already recorded`** — intended rotation: `ALLOW_TAG_REPLACE=true`; otherwise use a new tag |
@@ -38,6 +39,8 @@ are always **0** clean, **1** finding, **2** could not run.
 | `allowedSenders requires allowlistEnabled=true` / `InvalidAllowListRequest` | senders listed while `allowlistEnabled: false` | enable the allowlist, or empty `allowedSenders` |
 | committee has no redundancy | threshold == signer count (N-of-N): one offline signer halts the lane | add signers or lower the threshold, or set `ALLOW_WEAK_COMMITTEE=true` for testnets only |
 | committee threshold too low | threshold ≤ 2/3 of the signer set | raise the threshold, or set `ALLOW_WEAK_COMMITTEE=true` for testnets only |
+| `SetDynamicConfig: verifier feeAggregator is zero` / `SetFeeAggregator: resolver feeAggregator is zero` | the roles entry names no fee aggregator, so every fee withdrawal would revert | set `roles.feeAggregator` (verifier) or `resolver.roles.feeAggregator`, or set `ALLOW_ZERO_FEE_AGGREGATOR=true` to stage a zero deliberately |
+| `WARN allowlistAdmin is ZERO in config: this call CLEARS the on-chain allowlistAdmin` | config has no allowlist admin but the verifier has one | intended: proceed; otherwise set `roles.allowlistAdmin` to keep the admin |
 
 ## Governance checks
 
@@ -45,6 +48,7 @@ are always **0** clean, **1** finding, **2** could not run.
 |---|---|---|
 | `make deployments-check` exit 1 with no records | `deployments.md` on disk does not match `config/` (it still holds another deployment's addresses) | regenerate with `make deployments-doc`; the page reads "No deployments recorded yet" until you deploy |
 | validate-config: `declares the same direction as config/operator/lanes/<other>.json` | two lane files share a source and dest (by alias or by selector), whatever their tags | delete or move out one of them — see [configure § one file per directed lane](configure.md#one-file-per-directed-lane) |
+| `validate-config` fails `zero … feeAggregator` | a `verifiers[]` or `resolver` roles entry names no fee aggregator, so fee withdrawals would revert | set the listed `feeAggregator`, or set `ALLOW_ZERO_FEE_AGGREGATOR=true` to downgrade it to a `WARN` |
 | drift exit 1 | on-chain state ≠ config | read the script output for `DRIFT_DETECTED` lines; fix config or re-run configure |
 | drift exit 2 | RPC down, missing deployment record, or revert without drift marker | fix infrastructure first — not the same as drift |
 | drift: `has NO CODE at its recorded address` | the chainid matched, so the record does not match the chain: a `--broadcast` deploy whose transaction never landed (the record is written before sending), a deploy against a same-chainid fork, another chain's file copied over, or a hand-edited entry | if the deploy was interrupted, re-run it with `--resume`; otherwise fix or remove the entry in `config/deployments/<alias>.json`. The other contracts on the chain are still checked |
