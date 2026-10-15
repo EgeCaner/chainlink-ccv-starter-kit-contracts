@@ -150,16 +150,16 @@ contract ApplyAllowlistUpdates is BaseScript {
 
     (BaseVerifier.AllowlistConfigArgs[] memory args, uint256 matched) = argsFor(lanes, chainAlias, versionTag, verifier);
 
-    require(
-      matched > 0,
-      string.concat(
-        "ApplyAllowlistUpdates: no lanes with source ",
-        chainAlias,
-        " pinned to versionTag ",
-        ConfigLib.tagToString(versionTag)
-      )
-    );
-    if (args.length == 0) {
+    if (matched == 0) {
+      console2.log(
+        string.concat(
+          "[ApplyAllowlistUpdates] nothing to do: no lanes with source ",
+          chainAlias,
+          " pinned to versionTag ",
+          ConfigLib.tagToString(versionTag)
+        )
+      );
+    } else if (args.length == 0) {
       console2.log("[ApplyAllowlistUpdates] nothing to do: every lane is already current:", matched);
     } else {
       console2.log("[ApplyAllowlistUpdates] staged lanes:", args.length, "of", matched);

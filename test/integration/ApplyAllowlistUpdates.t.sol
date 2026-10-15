@@ -365,4 +365,15 @@ contract ApplyAllowlistUpdatesTest is CommitteeVerifierSetup {
 
     assertFalse(vm.exists(path), "stale batch removed rather than left importable");
   }
+
+  function test_run_noMatchingLanes_removesStaleBatch() public {
+    string memory outputAlias = "test/allowlist-no-matching-lanes";
+    string memory path =
+      _plantStaleBatch(outputAlias, string.concat("apply-allowlist-updates-", SRC_ALIAS, "-0x00010001"));
+
+    new ApplyAllowlistUpdatesHarness()
+      .runSafe(outputAlias, SRC_ALIAS, VERSION_TAG, _fixtureDeployment(SRC_ALIAS), new Types.LaneConfig[](0));
+
+    assertFalse(vm.exists(path), "stale batch removed rather than left importable");
+  }
 }

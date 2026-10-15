@@ -56,9 +56,9 @@ contract ApplyOutboundImplementationUpdates is BaseScript {
     // it are left out, so re-running after adding a lane stages only the lane that changed.
     (VersionedVerifierResolver.OutboundImplementationArgs[] memory args, uint256 matched) =
       argsFor(lanes, chainAlias, deployment);
-    require(matched > 0, string.concat("ApplyOutboundImplementationUpdates: no outbound lanes for ", chainAlias));
-
-    if (args.length == 0) {
+    if (matched == 0) {
+      console2.log("  nothing to do: no outbound lanes for", chainAlias);
+    } else if (args.length == 0) {
       console2.log("  nothing to do: every outbound destination is already current:", matched);
     } else {
       console2.log("  staging destinations:", args.length, "of", matched);

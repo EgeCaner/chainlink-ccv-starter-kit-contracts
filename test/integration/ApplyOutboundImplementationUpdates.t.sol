@@ -230,4 +230,14 @@ contract ApplyOutboundImplementationUpdatesTest is CommitteeVerifierSetup {
 
     assertFalse(vm.exists(path), "stale batch removed rather than left importable");
   }
+
+  function test_run_noOutboundLanes_removesStaleBatch() public {
+    string memory outputAlias = "test/outbound-no-outbound-lanes";
+    string memory path = _plantStaleBatch(outputAlias, "apply-outbound-implementations");
+
+    new ApplyOutboundImplementationUpdatesHarness()
+      .runSafe(outputAlias, SRC_ALIAS, _deployment(), new Types.LaneConfig[](0));
+
+    assertFalse(vm.exists(path), "stale batch removed rather than left importable");
+  }
 }

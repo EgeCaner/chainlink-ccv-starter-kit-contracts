@@ -139,16 +139,16 @@ contract ApplySignatureConfigs is BaseScript {
     (SignatureQuorumValidator.SignatureConfig[] memory configs, uint256 matched) =
       configsFor(ConfigLib.readLaneCommittees(), chainAlias, versionTag, verifier);
 
-    require(
-      matched > 0,
-      string.concat(
-        "ApplySignatureConfigs: no lanes with destination ",
-        chainAlias,
-        " pinned to versionTag ",
-        ConfigLib.tagToString(versionTag)
-      )
-    );
-    if (configs.length == 0) {
+    if (matched == 0) {
+      console2.log(
+        string.concat(
+          "[ApplySignatureConfigs] nothing to do: no lanes with destination ",
+          chainAlias,
+          " pinned to versionTag ",
+          ConfigLib.tagToString(versionTag)
+        )
+      );
+    } else if (configs.length == 0) {
       console2.log("[ApplySignatureConfigs] nothing to do: every lane is already current:", matched);
     } else {
       console2.log("[ApplySignatureConfigs] staged lanes:", configs.length, "of", matched);
