@@ -66,8 +66,18 @@ abstract contract CommitteeVerifierSetup is Test {
     address verifierAddr
   ) internal pure returns (Types.VerifierDeployment[] memory list) {
     list = new Types.VerifierDeployment[](1);
-    list[0].versionTag = VERSION_TAG;
-    list[0].addr = verifierAddr;
+    list[0] = _verifierRecord(VERSION_TAG, verifierAddr);
+  }
+
+  /// @notice One recorded verifier, with the deploy-time `rmn` the fixture constructs every
+  ///         verifier with.
+  function _verifierRecord(
+    bytes4 tag,
+    address verifierAddr
+  ) internal pure returns (Types.VerifierDeployment memory entry) {
+    entry.versionTag = tag;
+    entry.addr = verifierAddr;
+    entry.rmn = RMN;
   }
 
   /// @notice Single-entry `verifiers` array for operator-config fixtures.

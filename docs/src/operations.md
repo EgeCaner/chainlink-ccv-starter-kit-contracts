@@ -43,7 +43,9 @@ Two constructor arguments cannot be changed after deployment:
 
 - **`versionTag`** — `bytes4`, non-zero. A new tag means a new verifier deployment plus
   resolver re-wiring. Scheme: 2 bytes operator id, 2 bytes version.
-- **`rmn`** — no getter, so no check can ever verify it. Get it right before deploying.
+- **`rmn`** — no getter, so no check can read it back. Drift compares the recorded
+  deploy-time value with the chain config, which catches a later change but not a value
+  that was wrong from the start. Get it right before deploying.
 
 ## Rotating a verifier
 

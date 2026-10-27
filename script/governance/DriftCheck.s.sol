@@ -58,6 +58,11 @@ import {console2} from "forge-std/console2.sol";
 ///      retired lane's source-side entry is invisible here (pause it with
 ///      `make pause-lane` before retiring the lane file).
 ///
+/// @dev One check needs no RPC: each recorded verifier's deploy-time `rmn` against the
+///      chain config's (`checkRecordedRmn`). `rmn` is an immutable constructor argument
+///      with no on-chain getter, and `sync-ccip-config.sh` rewrites the config side from
+///      the CCIP API, so the record is the only place the two can be compared.
+///
 /// Usage (direct):
 ///   forge script script/governance/DriftCheck.s.sol --sig "run(string)" sepolia --rpc-url $SEPOLIA_RPC_URL
 /// Usage (CI, with exit-code mapping):
@@ -69,6 +74,7 @@ contract DriftCheck is Script {
     string calldata chainAlias
   ) external view {
     ConfigLib.assertChain(chainAlias);
+    Types.ChainConfig memory chainConfig = ConfigLib.readChain(chainAlias);
     Types.Deployment memory deployment = ConfigLib.readDeployment(chainAlias);
     Types.OperatorConfig memory operator = ConfigLib.readOperator(chainAlias);
     Types.LaneCommittee[] memory lanes = ConfigLib.readLaneCommittees();
@@ -76,7 +82,7 @@ contract DriftCheck is Script {
     console2.log("[DriftCheck] chain:", chainAlias);
     console2.log("  lanes considered:", lanes.length);
 
-    uint256 drift = checkAll(deployment, operator, lanes);
+    uint256 drift = checkAll(deployment, chainConfig, operator, lanes);
 
     if (drift > 0) {
       console2.log("DRIFT_DETECTED total mismatches:", drift);
@@ -87,10 +93,12 @@ contract DriftCheck is Script {
 
   function checkAll(
     Types.Deployment memory deployment,
+    Types.ChainConfig memory chainConfig,
     Types.OperatorConfig memory operator,
     Types.LaneCommittee[] memory lanes
   ) public view returns (uint256 drift) {
     drift += checkReachability(deployment);
+    drift += checkRecordedRmn(deployment, chainConfig);
     drift += checkRoles(deployment, operator);
     drift += checkVerifierConfig(deployment, operator);
     drift += checkResolverImplementations(deployment, operator, lanes);
@@ -204,6 +212,30 @@ contract DriftCheck is Script {
       );
       drift += _diffStrings(
         string.concat(prefix, "storageLocations"), declared.storageLocations, verifier.getStorageLocations()
+      );
+    }
+  }
+
+  /// @notice Each recorded verifier's deploy-time `rmn` vs `config/chains/<alias>.json` `.rmn`.
+  /// @dev `rmn` is immutable on-chain (`BaseVerifier.i_rmn`, internal, no getter), so the
+  ///      record is the only witness of what each verifier was built with. A mismatch is
+  ///      unfixable by configuration: either the upstream ARMProxy moved and that verifier
+  ///      needs a redeploy, or the chain config is wrong. Left unflagged, the next
+  ///      `deploy-verifier` would silently build a verifier on a different RMN than its
+  ///      siblings. Pure record-vs-config, so it runs even for a codeless record.
+  function checkRecordedRmn(
+    Types.Deployment memory deployment,
+    Types.ChainConfig memory chainConfig
+  ) public pure returns (uint256 drift) {
+    for (uint256 i = 0; i < deployment.verifiers.length; ++i) {
+      drift += _diffAddress(
+        string.concat(
+          "verifier ",
+          ConfigLib.tagToString(deployment.verifiers[i].versionTag),
+          " rmn (IMMUTABLE - recorded deploy arg vs config/chains; not fixable by configuration: redeploy the verifier, or the chain config is wrong)"
+        ),
+        deployment.verifiers[i].rmn,
+        chainConfig.rmn
       );
     }
   }
